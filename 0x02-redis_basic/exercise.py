@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
-"""
-The method that saves private variables for redis cache
+"""The method that saves private variables for redis cache
 """
 import redis
-import uuid
+from uuid import uuid4
+from typing import Callable, Optional, Union
 from functools import wraps
-from typing import Union, Callable, Optional
 
 
 def count_calls(method: Callable) -> Callable:
-    """
-    Counts the number of times a function is called
+    """task0 count_calls function
+
     Args:
-        method: The function to be decorated
-    Returns:
-        The decorated function
+        method[Callable]:
+
+    returns:
+        Callable:
     """
+    key = method.__qualname__
+
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        """
-        Wrapper function for the decorated function
-        Args:
-            self: The object instance
-            *args: The arguments passed to the function
-            **kwargs: The keyword arguments passed to the function
+        """wrapper decorated function
+
         Returns:
-            The return value of the decorated function
         """
-        key = method.__qualname__
         self._redis.incr(key)
         return method(self, *args, **kwargs)
 
@@ -35,110 +31,98 @@ def count_calls(method: Callable) -> Callable:
 
 
 def call_history(method: Callable) -> Callable:
-    """
-    Counts the number of times a function is called
+    """call_history function
+
     Args:
-        method: The function to be decorated
+        method[Callable]:
+
     Returns:
-        The decorated function
+        Callable:
     """
     key = method.__qualname__
-    inputs = key + ":inputs"
-    outputs = key + ":outputs"
+    inputs, outputs = key + ":inputs", key + ":outputs"
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        """
-        Wrapper function for the decorated function
-        Args:
-            self: The object instance
-            *args: The arguments passed to the function
-            **kwargs: The keyword arguments passed to the function
+        """wrapper decorated function
+
         Returns:
-            The return value of the decorated function
         """
         self._redis.rpush(inputs, str(args))
-        data = method(self, *args, **kwargs)
-        self._redis.rpush(outputs, str(data))
-        return data
+        output = str(method(self, *args, **kwargs))
+        self._redis.rpush(outputs, output)
+        return output
 
     return wrapper
 
 
 def replay(method: Callable) -> None:
-    """
-    Replays the history of a function
+    """replay function
+
     Args:
-        method: The function to be decorated
-    Returns:
-        None
+        method[Callable]:
     """
-    name = method.__qualname__
-    cache = redis.Redis()
-    calls = cache.get(name).decode("utf-8")
-    print("{} was called {} times:".format(name, calls))
-    inputs = cache.lrange(name + ":inputs", 0, -1)
-    outputs = cache.lrange(name + ":outputs", 0, -1)
-    for i, o in zip(inputs, outputs):
-        print("{}(*{}) -> {}".format(name, i.decode('utf-8'),
-                                     o.decode('utf-8')))
+    key = method.__qualname__
+    inputs, outputs = key + ":inputs", key + ":outputs"
+    redis = method.__self__._redis
+    count = redis.get(key).decode("utf-8")
+    print(f"{key} was called {count} times:")
+    IOTuple = zip(redis.lrange(inputs, 0, -1), redis.lrange(outputs, 0, -1))
+    for inp, outp in list(IOTuple):
+        attr, data = inp.decode("utf-8"), outp.decode("utf-8")
+        print(f"{key}(*{attr}) -> {data}")
 
 
 class Cache:
-    """
-    Defines methods to handle redis cache operations
-    """
-    def __init__(self) -> None:
-        """
-        Initialize redis client
-        Attributes:
-            self._redis (redis.Redis): redis client
-        """
+    """Cache class"""
+
+    def __init__(self):
+        """init function"""
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    @count_calls
     @call_history
+    @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
-        """
-        Store data in redis cache
+        """store function
+
         Args:
-            data (dict): data to store
+            data[str, bytes, int, float]: value
+
         Returns:
             str: key
         """
-        key = str(uuid.uuid4())
+        key = str(uuid4())
         self._redis.set(key, data)
-        return key
+        return str(key)
 
-    def get(self, key: str, fn: Optional[Callable] = None)\
-            -> Union[str, bytes, int, float, None]:
-        """
-        Get data from redis cache
-        """
-        data = self._redis.get(key)
-        if data is not None and fn is not None and callable(fn):
-            return fn(data)
-        return data
+    def get(
+        self, key: str, fn: Optional[Callable] = None
+    ) -> Union[str, bytes, int, float]:
+        """get function"""
+        value = self._redis.get(key)
+        if fn:
+            value = fn(value)
+        return value
 
-    def get_str(self, key: str) -> str:
-        """
-        Get data as string from redis cache
+    def get_str(self, data: str) -> str:
+        """get_str function
+
         Args:
-            key (str): key
-        Returns:
-            str: data
-        """
-        data = self.get(key, lambda x: x.decode('utf-8'))
-        return data
+            key[str]:
 
-    def get_int(self, key: str) -> int:
+        Returns:
+            str:
         """
-        Get data as integer from redis cache
+        return data.decode("utf-8")
+
+    def get_int(self, data: str) -> int:
+        """get_int function
+
         Args:
-            key (str): key
-        Returns:
-            int: data
-        """
-        data = self
+            key[str]:
 
+        Returns:
+            int:
+        """
+        return int(data)
