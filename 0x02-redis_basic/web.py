@@ -1,25 +1,24 @@
-
 #!/usr/bin/env python3
-''' Tools for request caching and tracking'''
-
+'''A module that contains tools for request caching and tracking.
+'''
 import redis
 import requests
-from typing import callable
 from functools import wraps
+from typing import Callable
 
 
 redis_store = redis.Redis()
-''' Simulate a slow response and test your caching'''
-
+'''The module-level Redis instance.
+'''
 
 
 def data_cacher(method: Callable) -> Callable:
-    ''' Output of data fetched'''
-
+    '''Caches the output of fetched data.
+    '''
     @wraps(method)
     def invoker(url) -> str:
-        ''' The core function is very simple'''
-
+        '''The wrapper function for caching the output.
+        '''
         redis_store.incr(f'count:{url}')
         result = redis_store.get(f'result:{url}')
         if result:
@@ -33,7 +32,7 @@ def data_cacher(method: Callable) -> Callable:
 
 @data_cacher
 def get_page(url: str) -> str:
-    ''' track how many times a particular URL was accessed in the key
-    and cache the result with an expiration time of 10 seconds'''
-
+    '''Returns the content of a URL after caching the request's response,
+    and tracking the request.
+    '''
     return requests.get(url).text
