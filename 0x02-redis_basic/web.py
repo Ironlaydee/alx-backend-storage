@@ -8,7 +8,7 @@ from typing import Callable
 
 
 redis_store = redis.Redis()
-'''The module-level Redis instance.
+'''The module that level Redis instance.
 '''
 
 
