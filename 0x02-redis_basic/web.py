@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
 """
-implementing web cache and tracker
+Implementing web cache and tracking
 """
 import requests
-import redis
+import time
 from functools import wraps
+from typing import Dict
 
-store = redis.Redis()
+cache: Dict[str, str] = {}
 
-
-def count_url_access(method):
-    """ Decorator counting how many times
-    a URL is accessed """
-    @wraps(method)
-    def wrapper(url):
-        cached_key = "cached:" + url
-        cached_data = store.get(cached_key)
-        if cached_data:
-            return cached_data.decode("utf-8")
-
-        count_key = "count:" + url
-        html = method(url)
-
-        store.incr(count_key)
-        store.set(cached_key, html)
-        store.expire(cached_key, 10)
-        return html
-    return wrapper
-
-
-@count_url_access
 def get_page(url: str) -> str:
-    """ Returns HTML content of a url """
-    res = requests.get(url)
-    return res.text
+    if url in cache:
+        print(f"Retrieving from cache: {url}")
+        return cache[url]
+    else:
+        print(f"Retrieving from web: {url}")
+        response = requests.get(url)
+        result = response.text
+        cache[url] = result
+        return result
+
+def cache_with_expiration(expiration: int):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            url = args[0]
+            key = f"count:{url}"
+            if key in cache:
+                count, timestamp = cache[key]
+                if time.time() - timestamp > expiration:
+                    result = func(*args, **kwargs)
+                    cache[key] = (count+1, time.time())
+                    return result
+                else:
+                    cache[key] = (count+1, timestamp)
+                    return
