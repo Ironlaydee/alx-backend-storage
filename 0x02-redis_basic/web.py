@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Implementing web cache and tracking
-"""
 import requests
 import time
 from functools import wraps
